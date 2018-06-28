@@ -2,6 +2,11 @@ var express = require('express');
 var mongoose = require('mongoose');
 var path = require('path');
 var bodyParser = require('body-parser');
+var passport = require('passport');
+var configPass = require('./config/passport'); 
+var morgan = require('morgan');
+var env = process.env.env || "development"
+console.log(env);
 
 var users = require('./routes/users');
 
@@ -19,6 +24,9 @@ db.once('open', () => {
   
 })
 
+// to log server requests
+app.use(morgan('dev')); 
+
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -30,10 +38,24 @@ app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: false }))
 
 // Public Folder
-app.use(express.static('./public'));
+app.use(express.static(path.join(__dirname, 'public')));
+// app.use(express.static('./public'));
 
 // Adding routes
-app.use('/userSignup', users);
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser(function(user, cb) {
+  cb(null, user.id);
+});
+
+passport.deserializeUser(function(id, cb) {
+  User.findById(id, function(err, user) {
+    cb(err, user);
+  });
+});
+
+app.use('/user', users);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -47,6 +69,10 @@ app.use(function(err, req, res, next) {
   // set locals, only providing error in development
   // console.log("ed");return;
   console.log(err);
+  if (err.name === 'UnauthorizedError') {
+    res.status(401);
+    res.json({"message" : err.name + ": " + err.message});
+  }
   res.locals.message = err;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
 
